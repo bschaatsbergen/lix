@@ -11,6 +11,7 @@ import (
 
 	"github.com/bmatcuk/doublestar/v4"
 	"github.com/bschaatsbergen/lix/internal/oci"
+	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/spf13/cobra"
 )
 
@@ -37,8 +38,8 @@ func NewLsCommand(cli *CLI) *cobra.Command {
 		Short: "List files in an OCI image or specific layer",
 		Long: highlight("lix ls alpine:latest") + "\n\n" +
 			"List files in an OCI image or specific layer.\n\n" +
-			"By default, shows files from the top layer. Use --layer\n" +
-			"to show files from a specific layer.\n\n" +
+			"By default, shows the merged overlay filesystem (all layers combined).\n" +
+			"Use --layer to show files from a specific layer only.\n\n" +
 			"Filter patterns support doublestar matching:\n" +
 			"  fontconfig              Substring match anywhere in path\n" +
 			"  *.conf                  Files ending with .conf (basename only)\n" +
@@ -88,25 +89,28 @@ func RunLs(ctx context.Context, cli *CLI, imageRef string, opts *LsOptions) erro
 
 	logger.Debug("Found layers", "count", len(layers))
 
-	// If a specific layer is requested, validate and select it
-	// Otherwise, default to the top layer
-	var layerIdx int
+	var files []FileInfo
+
 	if opts.Layer > 0 {
+		// Specific layer requested
 		if opts.Layer > len(layers) {
 			return fmt.Errorf("layer %d does not exist (image has %d layers)", opts.Layer, len(layers))
 		}
-		layerIdx = opts.Layer - 1 // Convert to 0-indexed
+		layerIdx := opts.Layer - 1 // Convert to 0-indexed
+		layer := layers[layerIdx]
+
+		var err error
+		files, err = extractFilesFromLayer(layer)
+		if err != nil {
+			return fmt.Errorf("failed to extract files from layer %d: %w", layerIdx+1, err)
+		}
 	} else {
-		// Default to the top layer
-		layerIdx = len(layers) - 1
-	}
-
-	layer := layers[layerIdx]
-
-	// Extract and list files from the layer
-	files, err := extractFilesFromLayer(layer)
-	if err != nil {
-		return fmt.Errorf("failed to extract files from layer %d: %w", layerIdx+1, err)
+		// Default: show merged overlay filesystem
+		var err error
+		files, err = extractMergedFilesystem(layers)
+		if err != nil {
+			return fmt.Errorf("failed to extract merged filesystem: %w", err)
+		}
 	}
 
 	// Filter files if pattern is specified
@@ -172,6 +176,59 @@ func extractFilesFromLayer(layer interface {
 			Size: header.Size,
 			Path: "/" + strings.TrimPrefix(header.Name, "/"),
 		})
+	}
+
+	return files, nil
+}
+
+// extractMergedFilesystem extracts files from all layers and merges them (overlay view)
+func extractMergedFilesystem(layers []v1.Layer) ([]FileInfo, error) {
+	// Map to store the final merged filesystem
+	fileMap := make(map[string]FileInfo)
+
+	// Process layers from bottom to top (overlay filesystem)
+	for _, layer := range layers {
+		rc, err := layer.Uncompressed()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get uncompressed layer: %w", err)
+		}
+
+		tr := tar.NewReader(rc)
+		for {
+			header, err := tr.Next()
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				rc.Close()
+				return nil, fmt.Errorf("failed to read tar header: %w", err)
+			}
+
+			// Normalize path
+			path := "/" + strings.TrimPrefix(header.Name, "/")
+
+			// Handle whiteout files (deletions in overlay)
+			if strings.HasPrefix(filepath.Base(header.Name), ".wh.") {
+				// File was deleted in this layer
+				delete(fileMap, path)
+				continue
+			}
+
+			// Add or overwrite file in the merged view
+			modeStr := formatFileMode(header.Typeflag, header.Mode)
+			fileMap[path] = FileInfo{
+				Mode: modeStr,
+				Size: header.Size,
+				Path: path,
+			}
+		}
+		rc.Close()
+	}
+
+	// Convert map to slice
+	files := make([]FileInfo, 0, len(fileMap))
+	for _, file := range fileMap {
+		files = append(files, file)
 	}
 
 	return files, nil
