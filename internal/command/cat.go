@@ -33,7 +33,7 @@ func NewCatCommand(cli *CLI) *cobra.Command {
 			"Use --layer to read from a specific layer.\n\n" +
 			"Examples:\n" +
 			"  lix cat alpine:latest /etc/alpine-release\n" +
-			"  lix cat --layer 1 nginx:alpine /etc/nginx/nginx.conf\n" +
+			"  lix cat --layer 2 nginx:alpine /etc/nginx/nginx.conf\n" +
 			"  lix cat ubuntu:latest /etc/os-release\n",
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -125,6 +125,9 @@ func extractFileFromLayer(layer interface {
 
 	tr := tar.NewReader(rc)
 
+	// Normalize the target path to have a leading slash
+	normalizedTarget := "/" + strings.TrimPrefix(targetPath, "/")
+
 	for {
 		header, err := tr.Next()
 		if err == io.EOF {
@@ -138,7 +141,7 @@ func extractFileFromLayer(layer interface {
 		tarPath := "/" + strings.TrimPrefix(header.Name, "/")
 
 		// Check if this is the file we're looking for
-		if tarPath == targetPath {
+		if tarPath == normalizedTarget {
 			// Check if it's a whiteout file (deletion marker)
 			if strings.HasPrefix(filepath.Base(header.Name), ".wh.") {
 				return "", false, nil // File was deleted in this layer
@@ -146,7 +149,7 @@ func extractFileFromLayer(layer interface {
 
 			// Only read regular files
 			if header.Typeflag != tar.TypeReg {
-				return "", false, fmt.Errorf("%s is not a regular file (type: %c)", targetPath, header.Typeflag)
+				return "", false, fmt.Errorf("%s is not a regular file (type: %c)", normalizedTarget, header.Typeflag)
 			}
 
 			// Read the file contents
