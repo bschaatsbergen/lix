@@ -70,17 +70,26 @@ against full paths. Use `**` for recursive directory matching.
 
 ### Read file contents
 
-Extract and display file contents from any image without creating a container.
+Write file contents to standard output from any image without creating a
+container. Output can be piped to other commands or redirected to files for
+inspection, diffing, or processing.
 
-```text
+```bash
 lix cat nginx:latest /etc/nginx/nginx.conf
 
 # Read from a specific layer
 lix cat --layer 2 nginx:latest /etc/os-release
+
+# Pipe to other tools
+lix cat alpine:latest /etc/os-release | grep VERSION_ID
+
+# Compare configuration between image versions
+diff <(lix cat nginx:1.25 /etc/nginx/nginx.conf) \
+     <(lix cat nginx:1.24 /etc/nginx/nginx.conf)
 ```
 
 The `cat` command searches layers top-down to find the final file state after
-all overlays.
+all overlays, just like in a running container.
 
 ### Compare two image tags
 
@@ -147,5 +156,4 @@ available to lix without additional downloads.
 
 When using `if-not-present`, lix checks the local container daemon first. If the
 image exists locally, it's used immediately without any network calls. If not
-found locally, lix pulls from the remote registry and the daemon caches it for
-future use.
+found locally, lix pulls from the remote registry.
