@@ -52,7 +52,6 @@ func RunInspect(ctx context.Context, cli *CLI, imageRef string, opts *InspectOpt
 	logger := cli.Logger()
 	logger.Debug("Inspecting image", "image", imageRef)
 
-	// Fetch the image
 	fetchOpts := &oci.FetchOptions{
 		Platform:   opts.Platform,
 		PullPolicy: oci.PullPolicy(opts.Pull),
@@ -72,7 +71,6 @@ func RunInspect(ctx context.Context, cli *CLI, imageRef string, opts *InspectOpt
 		return fmt.Errorf("failed to get image digest: %w", err)
 	}
 
-	// Fetch https://github.com/opencontainers/image-spec/blob/master/config.md
 	configFile, err := img.ConfigFile()
 	if err != nil {
 		return fmt.Errorf("failed to get config file: %w", err)
@@ -83,7 +81,6 @@ func RunInspect(ctx context.Context, cli *CLI, imageRef string, opts *InspectOpt
 		return fmt.Errorf("failed to get layers: %w", err)
 	}
 
-	// Calculate total size
 	var totalSize int64
 	for _, layer := range layers {
 		size, err := layer.Size()
@@ -93,7 +90,6 @@ func RunInspect(ctx context.Context, cli *CLI, imageRef string, opts *InspectOpt
 		totalSize += size
 	}
 
-	// Print the output
 	//TODO: move this to the view package
 	cli.Printf("Image: %s\n", imageRef)
 	cli.Printf("Registry: %s\n", ref.Context().RegistryStr())

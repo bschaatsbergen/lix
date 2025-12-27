@@ -72,7 +72,6 @@ func RunLs(ctx context.Context, cli *CLI, imageRef string, opts *LsOptions) erro
 	logger := cli.Logger()
 	logger.Debug("Listing files in image", "image", imageRef)
 
-	// Fetch the image
 	fetchOpts := &oci.FetchOptions{
 		Platform:   opts.Platform,
 		PullPolicy: oci.PullPolicy(opts.Pull),
@@ -92,11 +91,10 @@ func RunLs(ctx context.Context, cli *CLI, imageRef string, opts *LsOptions) erro
 	var files []FileInfo
 
 	if opts.Layer > 0 {
-		// Specific layer requested
 		if opts.Layer > len(layers) {
 			return fmt.Errorf("layer %d does not exist (image has %d layers)", opts.Layer, len(layers))
 		}
-		layerIdx := opts.Layer - 1 // Convert to 0-indexed
+		layerIdx := opts.Layer - 1
 		layer := layers[layerIdx]
 
 		var err error
@@ -105,7 +103,6 @@ func RunLs(ctx context.Context, cli *CLI, imageRef string, opts *LsOptions) erro
 			return fmt.Errorf("failed to extract files from layer %d: %w", layerIdx+1, err)
 		}
 	} else {
-		// Default: show merged overlay filesystem
 		var err error
 		files, err = extractMergedFilesystem(layers)
 		if err != nil {
@@ -113,7 +110,6 @@ func RunLs(ctx context.Context, cli *CLI, imageRef string, opts *LsOptions) erro
 		}
 	}
 
-	// Filter files if pattern is specified
 	if opts.Filter != "" {
 		files = filterFiles(files, opts.Filter)
 	}
@@ -127,7 +123,6 @@ func RunLs(ctx context.Context, cli *CLI, imageRef string, opts *LsOptions) erro
 		return nil
 	}
 
-	// Print files in tabular format
 	//TODO: move this to the view package
 	w := tabwriter.NewWriter(cli.Stream.Writer, 0, 0, 2, ' ', 0)
 	fmt.Fprintf(w, "Mode\tSize\tPath\n")
@@ -141,7 +136,6 @@ func RunLs(ctx context.Context, cli *CLI, imageRef string, opts *LsOptions) erro
 	return nil
 }
 
-// extractFilesFromLayer extracts file information from a layer's tar archive
 func extractFilesFromLayer(layer interface {
 	Uncompressed() (io.ReadCloser, error)
 }) ([]FileInfo, error) {
@@ -163,12 +157,10 @@ func extractFilesFromLayer(layer interface {
 			return nil, fmt.Errorf("failed to read tar header: %w", err)
 		}
 
-		// Skip if it's a whiteout file (used for deletions in layers)
 		if strings.HasPrefix(filepath.Base(header.Name), ".wh.") {
 			continue
 		}
 
-		// Determine file mode string (similar to ls -l)
 		modeStr := formatFileMode(header.Typeflag, header.Mode)
 
 		files = append(files, FileInfo{
@@ -181,12 +173,11 @@ func extractFilesFromLayer(layer interface {
 	return files, nil
 }
 
-// extractMergedFilesystem extracts files from all layers and merges them (overlay view)
+// extractMergedFilesystem builds the final overlay filesystem state by processing
+// all layers bottom-up. Later layers override files from earlier layers.
 func extractMergedFilesystem(layers []v1.Layer) ([]FileInfo, error) {
-	// Map to store the final merged filesystem
 	fileMap := make(map[string]FileInfo)
 
-	// Process layers from bottom to top (overlay filesystem)
 	for _, layer := range layers {
 		rc, err := layer.Uncompressed()
 		if err != nil {
@@ -204,17 +195,14 @@ func extractMergedFilesystem(layers []v1.Layer) ([]FileInfo, error) {
 				return nil, fmt.Errorf("failed to read tar header: %w", err)
 			}
 
-			// Normalize path
 			path := "/" + strings.TrimPrefix(header.Name, "/")
 
-			// Handle whiteout files (deletions in overlay)
+			// Whiteout files remove entries from the overlay.
 			if strings.HasPrefix(filepath.Base(header.Name), ".wh.") {
-				// File was deleted in this layer
 				delete(fileMap, path)
 				continue
 			}
 
-			// Add or overwrite file in the merged view
 			modeStr := formatFileMode(header.Typeflag, header.Mode)
 			fileMap[path] = FileInfo{
 				Mode: modeStr,
@@ -225,7 +213,6 @@ func extractMergedFilesystem(layers []v1.Layer) ([]FileInfo, error) {
 		rc.Close()
 	}
 
-	// Convert map to slice
 	files := make([]FileInfo, 0, len(fileMap))
 	for _, file := range fileMap {
 		files = append(files, file)
@@ -234,7 +221,6 @@ func extractMergedFilesystem(layers []v1.Layer) ([]FileInfo, error) {
 	return files, nil
 }
 
-// formatFileMode converts tar type and mode to ls-style string
 func formatFileMode(typeflag byte, mode int64) string {
 	var typeChar byte
 	switch typeflag {
@@ -252,7 +238,6 @@ func formatFileMode(typeflag byte, mode int64) string {
 		typeChar = '-'
 	}
 
-	// Convert mode to rwxrwxrwx format
 	modeStr := fmt.Sprintf("%c%s%s%s",
 		typeChar,
 		formatPermission(mode>>6&7),
@@ -263,7 +248,6 @@ func formatFileMode(typeflag byte, mode int64) string {
 	return modeStr
 }
 
-// formatPermission converts a 3-bit permission to rwx format
 func formatPermission(perm int64) string {
 	r := "-"
 	w := "-"
@@ -280,34 +264,29 @@ func formatPermission(perm int64) string {
 	return r + w + x
 }
 
-// filterFiles filters files using doublestar pattern matching
+// filterFiles applies glob or substring matching to filter the file list.
+// Patterns without wildcards match as substrings. Patterns without slashes
+// implicitly match against basenames with **/ prefix.
 func filterFiles(files []FileInfo, pattern string) []FileInfo {
 	var filtered []FileInfo
-
-	// If pattern has no wildcards or special chars, use substring matching
 	hasWildcard := strings.ContainsAny(pattern, "*?[")
 
 	for _, file := range files {
 		matched := false
 
 		if hasWildcard {
-			// Use doublestar for glob patterns (supports ** for directory matching)
 			pathForMatch := strings.TrimPrefix(file.Path, "/")
 
-			// If pattern doesn't contain /, treat it as basename-only pattern
 			if !strings.Contains(pattern, "/") {
-				// Match against basename with implicit **/ prefix
 				expandedPattern := "**/" + pattern
 				if m, _ := doublestar.Match(expandedPattern, pathForMatch); m {
 					matched = true
 				}
 			} else {
-				// Pattern contains /, match against full path
 				if m, _ := doublestar.Match(pattern, pathForMatch); m {
 					matched = true
 				}
 
-				// Also try with leading slash if pattern starts with /
 				if !matched && strings.HasPrefix(pattern, "/") {
 					if m, _ := doublestar.Match(pattern, file.Path); m {
 						matched = true
@@ -315,7 +294,6 @@ func filterFiles(files []FileInfo, pattern string) []FileInfo {
 				}
 			}
 		} else {
-			// No wildcards: simple substring match
 			matched = strings.Contains(file.Path, pattern)
 		}
 

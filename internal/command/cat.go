@@ -57,12 +57,10 @@ func RunCat(ctx context.Context, cli *CLI, imageRef, filePath string, opts *CatO
 	logger := cli.Logger()
 	logger.Debug("Reading file from image", "image", imageRef, "file", filePath)
 
-	// Normalize file path to have leading slash
 	if !strings.HasPrefix(filePath, "/") {
 		filePath = "/" + filePath
 	}
 
-	// Fetch the image
 	fetchOpts := &oci.FetchOptions{
 		Platform:   opts.Platform,
 		PullPolicy: oci.PullPolicy(opts.Pull),
@@ -79,18 +77,14 @@ func RunCat(ctx context.Context, cli *CLI, imageRef, filePath string, opts *CatO
 
 	logger.Debug("Found layers", "count", len(layers))
 
-	// If a specific layer is requested, validate and select it
-	// Otherwise, default to the top layer
 	var layersToSearch []int
 	if opts.Layer > 0 {
-		// Specific layer requested
 		if opts.Layer > len(layers) {
 			return fmt.Errorf("layer %d does not exist (image has %d layers)", opts.Layer, len(layers))
 		}
-		layersToSearch = []int{opts.Layer - 1} // Convert to 0-indexed
+		layersToSearch = []int{opts.Layer - 1}
 	} else {
-		// Search from top layer down (overlay view)
-		// Later layers override earlier ones
+		// Search top-down to find the final file state after all overlays.
 		for i := len(layers) - 1; i >= 0; i-- {
 			layersToSearch = append(layersToSearch, i)
 		}
@@ -109,11 +103,11 @@ func RunCat(ctx context.Context, cli *CLI, imageRef, filePath string, opts *CatO
 		}
 	}
 
-	// File not found in any layer
 	return fmt.Errorf("file not found: %s", filePath)
 }
 
-// extractFileFromLayer searches for a file in a layer and returns its contents
+// extractFileFromLayer returns file contents if found in the layer's tar archive.
+// Returns (content, found, error) where found indicates whether the file exists.
 func extractFileFromLayer(layer interface {
 	Uncompressed() (io.ReadCloser, error)
 }, targetPath string) (string, bool, error) {
@@ -124,8 +118,6 @@ func extractFileFromLayer(layer interface {
 	defer rc.Close()
 
 	tr := tar.NewReader(rc)
-
-	// Normalize the target path to have a leading slash
 	normalizedTarget := "/" + strings.TrimPrefix(targetPath, "/")
 
 	for {
@@ -137,22 +129,18 @@ func extractFileFromLayer(layer interface {
 			return "", false, fmt.Errorf("failed to read tar header: %w", err)
 		}
 
-		// Normalize the tar path
 		tarPath := "/" + strings.TrimPrefix(header.Name, "/")
 
-		// Check if this is the file we're looking for
 		if tarPath == normalizedTarget {
-			// Check if it's a whiteout file (deletion marker)
+			// Whiteout files indicate the file was deleted in this layer.
 			if strings.HasPrefix(filepath.Base(header.Name), ".wh.") {
-				return "", false, nil // File was deleted in this layer
+				return "", false, nil
 			}
 
-			// Only read regular files
 			if header.Typeflag != tar.TypeReg {
 				return "", false, fmt.Errorf("%s is not a regular file (type: %c)", normalizedTarget, header.Typeflag)
 			}
 
-			// Read the file contents
 			content, err := io.ReadAll(tr)
 			if err != nil {
 				return "", false, fmt.Errorf("failed to read file contents: %w", err)
