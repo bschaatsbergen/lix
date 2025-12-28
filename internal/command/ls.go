@@ -320,12 +320,12 @@ func filterFiles(files []FileInfo, pattern string) []FileInfo {
 }
 
 func filterByPath(files []FileInfo, path string) []FileInfo {
-	// Normalize path to have leading slash and no trailing slash
+	// Tar paths are always absolute. Normalize to "/foo" to handle both "foo" and "/foo/".
 	normalizedPath := "/" + strings.Trim(path, "/")
 
 	var filtered []FileInfo
 	for _, file := range files {
-		// Check if file path starts with the directory path
+		// Suffix "/" prevents "/bin" matching "/sbin".
 		if file.Path == normalizedPath || strings.HasPrefix(file.Path, normalizedPath+"/") {
 			filtered = append(filtered, file)
 		}
