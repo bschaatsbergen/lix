@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/bschaatsbergen/cek/internal/oci"
+	"github.com/bschaatsbergen/cek/internal/view"
 	"github.com/google/go-containerregistry/pkg/v1/tarball"
 	"github.com/spf13/cobra"
 )
@@ -67,8 +68,10 @@ func RunExport(ctx context.Context, cli *CLI, imageRef string, opts *ExportOptio
 		return fmt.Errorf("failed to write tarball: %w", err)
 	}
 
-	cli.Printf("Exported %s to %s\n", imageRef, opts.Output)
 	logger.Debug("Export complete")
 
-	return nil
+	return cli.Export().Render(&view.ExportData{
+		ImageRef:   imageRef,
+		OutputPath: opts.Output,
+	})
 }

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/bschaatsbergen/cek/internal/oci"
+	"github.com/bschaatsbergen/cek/internal/view"
 	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/spf13/cobra"
@@ -93,9 +94,11 @@ func RunCompare(ctx context.Context, cli *CLI, image1Ref, image2Ref string, opts
 		return fmt.Errorf("failed to get digest for second image: %w", err)
 	}
 
-	if digest1.String() == digest2.String() {
-		cli.Printf("Images are identical\n")
-		return nil
+	identical := digest1.String() == digest2.String()
+	if identical {
+		return cli.Compare().Render(&view.CompareData{
+			Identical: true,
+		})
 	}
 
 	layers1, err := img1.Layers()
@@ -149,45 +152,20 @@ func RunCompare(ctx context.Context, cli *CLI, image1Ref, image2Ref string, opts
 		return fmt.Errorf("failed to get size for second image: %w", err)
 	}
 
-	cli.Printf("Image 1: %s\n", image1Ref)
-	cli.Printf("  Layers: %d\n", len(layers1))
-	cli.Printf("  Size: %s\n\n", oci.FormatBytes(size1))
-
-	cli.Printf("Image 2: %s\n", image2Ref)
-	cli.Printf("  Layers: %d\n", len(layers2))
-	cli.Printf("  Size: %s\n\n", oci.FormatBytes(size2))
-
 	added, removed, modified := compareFiles(files1, files2)
 
-	if len(added) > 0 {
-		cli.Printf("Added:\n")
-		for _, path := range added {
-			cli.Printf("  %s\n", path)
-		}
-		cli.Printf("\n")
-	}
-
-	if len(removed) > 0 {
-		cli.Printf("Removed:\n")
-		for _, path := range removed {
-			cli.Printf("  %s\n", path)
-		}
-		cli.Printf("\n")
-	}
-
-	if len(modified) > 0 {
-		cli.Printf("Modified:\n")
-		for _, path := range modified {
-			cli.Printf("  %s\n", path)
-		}
-		cli.Printf("\n")
-	}
-
-	if len(added) == 0 && len(removed) == 0 && len(modified) == 0 {
-		cli.Printf("No file changes detected\n")
-	}
-
-	return nil
+	return cli.Compare().Render(&view.CompareData{
+		Image1Ref:    image1Ref,
+		Image2Ref:    image2Ref,
+		Image1Layers: len(layers1),
+		Image2Layers: len(layers2),
+		Image1Size:   size1,
+		Image2Size:   size2,
+		Added:        added,
+		Removed:      removed,
+		Modified:     modified,
+		Identical:    false,
+	})
 }
 
 // extractFileListFromLayers returns file paths from layers not in otherLayerDigests.

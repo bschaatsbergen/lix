@@ -27,7 +27,6 @@ func NewVersionCommand(cli *CLI) *cobra.Command {
 			if len(args) > 0 {
 				opts.Path = args[0]
 			}
-
 			cli.PrintVersion()
 		},
 	}

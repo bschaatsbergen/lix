@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/bschaatsbergen/cek/internal/oci"
+	"github.com/bschaatsbergen/cek/internal/view"
 	"github.com/spf13/cobra"
 )
 
@@ -98,8 +99,9 @@ func RunCat(ctx context.Context, cli *CLI, imageRef, filePath string, opts *CatO
 		}
 
 		if found {
-			cli.Printf("%s", content)
-			return nil
+			return cli.Cat().Render(&view.CatData{
+				Content: content,
+			})
 		}
 	}
 
