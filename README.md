@@ -10,13 +10,13 @@ versions or layers.
 
 ## Installation
 
-```text
+```bash
 go install github.com/bschaatsbergen/cek@latest
 ```
 
 Or build from source:
 
-```text
+```bash
 git clone https://github.com/bschaatsbergen/cek.git
 cd cek
 go build -o cek .
@@ -29,7 +29,7 @@ go build -o cek .
 View image details including digest, creation time, architecture, total size,
 and individual layer information.
 
-```text
+```bash
 cek inspect nginx:latest
 Image: nginx:latest
 Registry: index.docker.io
@@ -55,9 +55,18 @@ By default, `cek ls` shows the merged overlay filesystem, which is what you see
 inside a running container. All layers are combined, with upper layers
 overriding lower ones.
 
-```text
+You can optionally specify a path to list only files under a specific directory.
+
+```bash
 # Show all files (merged overlay view)
 cek ls nginx:latest
+
+# List files in a specific directory
+cek ls nginx:latest /etc
+cek ls nginx:latest /etc/nginx
+
+# Combine path with pattern filter
+cek ls nginx:latest /etc/nginx --filter '*.conf'
 
 # Filter by pattern (supports doublestar glob matching)
 cek ls --filter '**/nginx/*.conf' nginx:latest
@@ -98,7 +107,7 @@ Compare images from the same repository to see what changed between versions.
 Only files from unique layers are analyzed, making comparisons fast even for
 large images with shared base layers.
 
-```text
+```bash
 cek compare alpine:3.19 alpine:3.18
 ```
 
@@ -113,7 +122,7 @@ images, avoiding rate limits when exploring images you've already pulled.
 
 Set `DOCKER_HOST` to point to your runtime's socket:
 
-```text
+```bash
 # Docker (standard Linux)
 export DOCKER_HOST=unix:///var/run/docker.sock
 
@@ -139,7 +148,7 @@ cek defaults to `if-not-present` to avoid registry rate limits. Images are
 fetched from your local container daemon cache when available, falling back to
 the remote registry only if needed.
 
-```text
+```bash
 # Use local cache if available, pull if missing (default)
 cek inspect --pull if-not-present nginx:latest
 
