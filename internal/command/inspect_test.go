@@ -2,7 +2,6 @@ package command_test
 
 import (
 	"bytes"
-	"context"
 	"testing"
 
 	"github.com/bschaatsbergen/cek/internal/command"
@@ -142,14 +141,10 @@ func TestInspectCommand_FullyQualifiedImage(t *testing.T) {
 func TestRunInspect_ValidImage(t *testing.T) {
 	buf := new(bytes.Buffer)
 	cli := command.NewCLI(view.ViewHuman, buf, view.LogLevelSilent)
-	ctx := context.Background()
+	cmd := command.NewInspectCommand(cli)
+	cmd.SetArgs([]string{"alpine:latest"})
 
-	opts := &command.InspectOptions{
-		Platform: "",
-		Pull:     "if-not-present",
-	}
-
-	err := command.RunInspect(ctx, cli, "alpine:latest", opts)
+	err := cmd.Execute()
 	require.NoError(t, err)
 
 	output := buf.String()
@@ -162,13 +157,10 @@ func TestRunInspect_ValidImage(t *testing.T) {
 func TestRunInspect_LayerInformation(t *testing.T) {
 	buf := new(bytes.Buffer)
 	cli := command.NewCLI(view.ViewHuman, buf, view.LogLevelSilent)
-	ctx := context.Background()
+	cmd := command.NewInspectCommand(cli)
+	cmd.SetArgs([]string{"alpine:latest"})
 
-	opts := &command.InspectOptions{
-		Pull: "if-not-present",
-	}
-
-	err := command.RunInspect(ctx, cli, "alpine:latest", opts)
+	err := cmd.Execute()
 	require.NoError(t, err)
 
 	output := buf.String()
@@ -183,14 +175,10 @@ func TestRunInspect_LayerInformation(t *testing.T) {
 func TestRunInspect_WithPlatformSpecified(t *testing.T) {
 	buf := new(bytes.Buffer)
 	cli := command.NewCLI(view.ViewHuman, buf, view.LogLevelSilent)
-	ctx := context.Background()
+	cmd := command.NewInspectCommand(cli)
+	cmd.SetArgs([]string{"alpine:latest", "--platform", "linux/amd64"})
 
-	opts := &command.InspectOptions{
-		Platform: "linux/amd64",
-		Pull:     "if-not-present",
-	}
-
-	err := command.RunInspect(ctx, cli, "alpine:latest", opts)
+	err := cmd.Execute()
 	require.NoError(t, err)
 
 	output := buf.String()
@@ -200,13 +188,10 @@ func TestRunInspect_WithPlatformSpecified(t *testing.T) {
 func TestRunInspect_SizeFormatting(t *testing.T) {
 	buf := new(bytes.Buffer)
 	cli := command.NewCLI(view.ViewHuman, buf, view.LogLevelSilent)
-	ctx := context.Background()
+	cmd := command.NewInspectCommand(cli)
+	cmd.SetArgs([]string{"alpine:latest"})
 
-	opts := &command.InspectOptions{
-		Pull: "if-not-present",
-	}
-
-	err := command.RunInspect(ctx, cli, "alpine:latest", opts)
+	err := cmd.Execute()
 	require.NoError(t, err)
 
 	output := buf.String()
@@ -217,13 +202,10 @@ func TestRunInspect_SizeFormatting(t *testing.T) {
 func TestRunInspect_CreatedTimestamp(t *testing.T) {
 	buf := new(bytes.Buffer)
 	cli := command.NewCLI(view.ViewHuman, buf, view.LogLevelSilent)
-	ctx := context.Background()
+	cmd := command.NewInspectCommand(cli)
+	cmd.SetArgs([]string{"alpine:latest"})
 
-	opts := &command.InspectOptions{
-		Pull: "if-not-present",
-	}
-
-	err := command.RunInspect(ctx, cli, "alpine:latest", opts)
+	err := cmd.Execute()
 	require.NoError(t, err)
 
 	output := buf.String()
