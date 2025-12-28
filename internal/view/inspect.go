@@ -3,6 +3,7 @@ package view
 import (
 	"encoding/json"
 	"fmt"
+	"text/tabwriter"
 	"time"
 
 	"github.com/bschaatsbergen/cek/internal/oci"
@@ -50,10 +51,16 @@ func (v *inspectHumanView) Render(data *InspectData) error {
 	v.Printf("Size: %s\n", oci.FormatBytes(data.TotalSize))
 	v.Printf("\n")
 	v.Printf("Layers:\n")
-	v.Printf("#   %-66s %s\n", "Digest", "Size")
+
+	w := tabwriter.NewWriter(v.Writer, 0, 0, 2, ' ', 0)
+	_, _ = fmt.Fprintf(w, "#\tDigest\tSize\n")
 
 	for _, layer := range data.Layers {
-		v.Printf("%-3d %-66s %s\n", layer.Index, layer.Digest.String(), oci.FormatBytes(layer.Size))
+		_, _ = fmt.Fprintf(w, "%d\t%s\t%s\n", layer.Index, layer.Digest.String(), oci.FormatBytes(layer.Size))
+	}
+
+	if err := w.Flush(); err != nil {
+		return fmt.Errorf("failed to flush output: %w", err)
 	}
 
 	return nil
