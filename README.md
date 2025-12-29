@@ -1,4 +1,4 @@
-# cek (Container Exploration Kit)
+# cek
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/bschaatsbergen/cek)](https://goreportcard.com/report/github.com/bschaatsbergen/cek)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -164,6 +164,19 @@ podman load -i alpine.tar
 Use cases include air-gapped deployments, image backups, sharing images without
 pushing to a registry, and transferring images between different container
 runtimes.
+
+### Display directory tree
+
+Show the directory tree structure of an OCI image, making it easy to visualize
+the filesystem layout.
+
+```bash
+# Show the top-level directories in an image
+cek tree nginx:latest -L 1
+
+# Inspect the /usr/local/bin folder of a specific layer
+cek tree --layer 4 python:3.12-slim /usr/local/bin
+```
 
 ## Container Daemon Support
 
