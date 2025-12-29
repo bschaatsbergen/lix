@@ -171,17 +171,11 @@ Show the directory tree structure of an OCI image, making it easy to visualize
 the filesystem layout.
 
 ```bash
-# Show full tree
-cek tree alpine:latest
+# Show the top-level directories in an image
+cek tree nginx:latest -L 1
 
-# Show tree of specific directory
-cek tree nginx:latest /etc/nginx
-
-# Limit tree depth
-cek tree alpine:latest -L 2
-
-# Show tree of specific layer
-cek tree --layer 1 nginx:latest
+# Inspect the /usr/local/bin folder of a specific layer
+cek tree --layer 4 python:3.12-slim /usr/local/bin
 ```
 
 ## Container Daemon Support
