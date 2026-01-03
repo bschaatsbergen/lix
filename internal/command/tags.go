@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/bschaatsbergen/cek/internal/view"
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/spf13/cobra"
@@ -65,11 +66,6 @@ func RunTags(ctx context.Context, cli *CLI, imageRef string, opts *TagsOptions) 
 		return fmt.Errorf("failed to list tags: %w", err)
 	}
 
-	if len(tags) == 0 {
-		cli.Printf("No tags found for %s\n", repo.String())
-		return nil
-	}
-
 	// Reverse to display newest tags first.
 	// Users typically care most about the latest versions.
 	for i, j := 0, len(tags)-1; i < j; i, j = i+1, j-1 {
@@ -80,11 +76,10 @@ func RunTags(ctx context.Context, cli *CLI, imageRef string, opts *TagsOptions) 
 		tags = tags[:opts.Limit]
 	}
 
-	for _, tag := range tags {
-		cli.Printf("%s\n", tag)
-	}
-
 	logger.Debug("Listed tags", "count", len(tags))
 
-	return nil
+	return cli.Tags().Render(&view.TagsData{
+		Repository: repo.String(),
+		Tags:       tags,
+	})
 }

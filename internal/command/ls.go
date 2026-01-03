@@ -7,10 +7,10 @@ import (
 	"io"
 	"path/filepath"
 	"strings"
-	"text/tabwriter"
 
 	"github.com/bmatcuk/doublestar/v4"
 	"github.com/bschaatsbergen/cek/internal/oci"
+	"github.com/bschaatsbergen/cek/internal/view"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/spf13/cobra"
 )
@@ -21,12 +21,6 @@ type LsOptions struct {
 	Platform string
 	Pull     string
 	Path     string
-}
-
-type FileInfo struct {
-	Mode string
-	Size int64
-	Path string
 }
 
 func NewLsCommand(cli *CLI) *cobra.Command {
@@ -95,7 +89,7 @@ func RunLs(ctx context.Context, cli *CLI, imageRef string, opts *LsOptions) erro
 
 	logger.Debug("Found layers", "count", len(layers))
 
-	var files []FileInfo
+	var files []view.FileInfo
 
 	if opts.Layer > 0 {
 		if opts.Layer > len(layers) {
@@ -125,38 +119,16 @@ func RunLs(ctx context.Context, cli *CLI, imageRef string, opts *LsOptions) erro
 		files = filterFiles(files, opts.Filter)
 	}
 
-	if len(files) == 0 {
-		switch {
-		case opts.Path != "" && opts.Filter != "":
-			cli.Printf("No files matching pattern '%s' in path '%s'\n", opts.Filter, opts.Path)
-		case opts.Path != "":
-			cli.Printf("No files found in path '%s'\n", opts.Path)
-		case opts.Filter != "":
-			cli.Printf("No files matching pattern '%s'\n", opts.Filter)
-		default:
-			cli.Printf("No files found\n")
-		}
-		return nil
-	}
-
-	//TODO: move this to the view package
-	w := tabwriter.NewWriter(cli.Writer, 0, 0, 2, ' ', 0)
-	_, _ = fmt.Fprintf(w, "Mode\tSize\tPath\n")
-
-	for _, file := range files {
-		_, _ = fmt.Fprintf(w, "%s\t%s\t%s\n", file.Mode, oci.FormatBytes(file.Size), file.Path)
-	}
-
-	if err := w.Flush(); err != nil {
-		return fmt.Errorf("failed to flush output: %w", err)
-	}
-
-	return nil
+	return cli.Ls().Render(&view.LsData{
+		Files:  files,
+		Path:   opts.Path,
+		Filter: opts.Filter,
+	})
 }
 
 func extractFilesFromLayer(layer interface {
 	Uncompressed() (io.ReadCloser, error)
-}) ([]FileInfo, error) {
+}) ([]view.FileInfo, error) {
 	rc, err := layer.Uncompressed()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get uncompressed layer: %w", err)
@@ -165,7 +137,7 @@ func extractFilesFromLayer(layer interface {
 		_ = rc.Close()
 	}()
 
-	var files []FileInfo
+	var files []view.FileInfo
 	tr := tar.NewReader(rc)
 
 	for {
@@ -183,7 +155,7 @@ func extractFilesFromLayer(layer interface {
 
 		modeStr := formatFileMode(header.Typeflag, header.Mode)
 
-		files = append(files, FileInfo{
+		files = append(files, view.FileInfo{
 			Mode: modeStr,
 			Size: header.Size,
 			Path: "/" + strings.TrimPrefix(header.Name, "/"),
@@ -195,8 +167,8 @@ func extractFilesFromLayer(layer interface {
 
 // extractMergedFilesystem builds the final overlay filesystem state by processing
 // all layers bottom-up. Later layers override files from earlier layers.
-func extractMergedFilesystem(layers []v1.Layer) ([]FileInfo, error) {
-	fileMap := make(map[string]FileInfo)
+func extractMergedFilesystem(layers []v1.Layer) ([]view.FileInfo, error) {
+	fileMap := make(map[string]view.FileInfo)
 
 	for _, layer := range layers {
 		rc, err := layer.Uncompressed()
@@ -224,7 +196,7 @@ func extractMergedFilesystem(layers []v1.Layer) ([]FileInfo, error) {
 			}
 
 			modeStr := formatFileMode(header.Typeflag, header.Mode)
-			fileMap[path] = FileInfo{
+			fileMap[path] = view.FileInfo{
 				Mode: modeStr,
 				Size: header.Size,
 				Path: path,
@@ -233,7 +205,7 @@ func extractMergedFilesystem(layers []v1.Layer) ([]FileInfo, error) {
 		_ = rc.Close()
 	}
 
-	files := make([]FileInfo, 0, len(fileMap))
+	files := make([]view.FileInfo, 0, len(fileMap))
 	for _, file := range fileMap {
 		files = append(files, file)
 	}
@@ -287,8 +259,8 @@ func formatPermission(perm int64) string {
 // filterFiles applies glob or substring matching to filter the file list.
 // Patterns without wildcards match as substrings. Patterns without slashes
 // implicitly match against basenames with **/ prefix.
-func filterFiles(files []FileInfo, pattern string) []FileInfo {
-	var filtered []FileInfo
+func filterFiles(files []view.FileInfo, pattern string) []view.FileInfo {
+	var filtered []view.FileInfo
 	hasWildcard := strings.ContainsAny(pattern, "*?[")
 
 	for _, file := range files {
@@ -324,11 +296,11 @@ func filterFiles(files []FileInfo, pattern string) []FileInfo {
 	return filtered
 }
 
-func filterByPath(files []FileInfo, path string) []FileInfo {
+func filterByPath(files []view.FileInfo, path string) []view.FileInfo {
 	// Tar paths are always absolute. Normalize to "/foo" to handle both "foo" and "/foo/".
 	normalizedPath := "/" + strings.Trim(path, "/")
 
-	var filtered []FileInfo
+	var filtered []view.FileInfo
 	for _, file := range files {
 		// Suffix "/" prevents "/bin" matching "/sbin".
 		if file.Path == normalizedPath || strings.HasPrefix(file.Path, normalizedPath+"/") {

@@ -3,10 +3,16 @@ package view
 var _ Viewer = (*HumanView)(nil)
 var _ Viewer = (*JSONView)(nil)
 
-// Viewer represents an output formatting strategy.
-// Each view type (e.g., Human, JSON) implements this interface to support different views (e.g., FmtView, PlanView).
+// Viewer represents an output formatting strategy. Each view type (e.g., Human,
+// JSON) implements this interface to support different views (e.g.,
+// InspectView, CatView, LsView).
 type Viewer interface {
 	Inspect() InspectView
+	Cat() CatView
+	Ls() LsView
+	Export() ExportView
+	Tags() TagsView
+	Compare() CompareView
 	Logger() Logger
 }
 
@@ -43,6 +49,26 @@ func (h *HumanView) Inspect() InspectView {
 	return newInspectHumanView(h)
 }
 
+func (h *HumanView) Cat() CatView {
+	return newCatHumanView(h)
+}
+
+func (h *HumanView) Ls() LsView {
+	return newLsHumanView(h)
+}
+
+func (h *HumanView) Export() ExportView {
+	return newExportHumanView(h)
+}
+
+func (h *HumanView) Tags() TagsView {
+	return newTagsHumanView(h)
+}
+
+func (h *HumanView) Compare() CompareView {
+	return newCompareHumanView(h)
+}
+
 func (h *HumanView) Logger() Logger {
 	return h.logger
 }
@@ -67,6 +93,26 @@ func NewJSONView(s *Stream, level LogLevel) *JSONView {
 
 func (j *JSONView) Inspect() InspectView {
 	return newInspectJSONView(j)
+}
+
+func (j *JSONView) Cat() CatView {
+	return newCatJSONView(j)
+}
+
+func (j *JSONView) Ls() LsView {
+	return newLsJSONView(j)
+}
+
+func (j *JSONView) Export() ExportView {
+	return newExportJSONView(j)
+}
+
+func (j *JSONView) Tags() TagsView {
+	return newTagsJSONView(j)
+}
+
+func (j *JSONView) Compare() CompareView {
+	return newCompareJSONView(j)
 }
 
 func (j *JSONView) Logger() Logger {

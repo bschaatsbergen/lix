@@ -3,9 +3,9 @@ package command
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/bschaatsbergen/cek/internal/oci"
+	"github.com/bschaatsbergen/cek/internal/view"
 	"github.com/spf13/cobra"
 )
 
@@ -82,25 +82,7 @@ func RunInspect(ctx context.Context, cli *CLI, imageRef string, opts *InspectOpt
 	}
 
 	var totalSize int64
-	for _, layer := range layers {
-		size, err := layer.Size()
-		if err != nil {
-			return fmt.Errorf("failed to get layer size: %w", err)
-		}
-		totalSize += size
-	}
-
-	//TODO: move this to the view package
-	cli.Printf("Image: %s\n", imageRef)
-	cli.Printf("Registry: %s\n", ref.Context().RegistryStr())
-	cli.Printf("Digest: %s\n", digest)
-	cli.Printf("Created: %s\n", configFile.Created.Format(time.RFC3339))
-	cli.Printf("OS/Arch: %s/%s\n", configFile.OS, configFile.Architecture)
-	cli.Printf("Size: %s\n", oci.FormatBytes(totalSize))
-	cli.Printf("\n")
-	cli.Printf("Layers:\n")
-	cli.Printf("#   %-66s %s\n", "Digest", "Size")
-
+	layerDataList := make([]view.LayerData, 0, len(layers))
 	for i, layer := range layers {
 		layerDigest, err := layer.Digest()
 		if err != nil {
@@ -111,9 +93,23 @@ func RunInspect(ctx context.Context, cli *CLI, imageRef string, opts *InspectOpt
 		if err != nil {
 			return fmt.Errorf("failed to get layer size: %w", err)
 		}
+		totalSize += size
 
-		cli.Printf("%-3d %-66s %s\n", i+1, layerDigest.String(), oci.FormatBytes(size))
+		layerDataList = append(layerDataList, view.LayerData{
+			Index:  i + 1,
+			Digest: layerDigest,
+			Size:   size,
+		})
 	}
 
-	return nil
+	return cli.Inspect().Render(&view.InspectData{
+		ImageRef:     imageRef,
+		Registry:     ref.Context().RegistryStr(),
+		Digest:       digest,
+		Created:      configFile.Created.Time,
+		OS:           configFile.OS,
+		Architecture: configFile.Architecture,
+		TotalSize:    totalSize,
+		Layers:       layerDataList,
+	})
 }
