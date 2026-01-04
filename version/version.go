@@ -5,25 +5,10 @@ import (
 	"fmt"
 	"io"
 	"runtime"
-	"strings"
 )
 
-//go:embed VERSION
-var versionFile string
-
-var (
-	Version string
-)
-
-func init() {
-	if Version == "" {
-		Version = strings.TrimSpace(versionFile)
-	}
-
-	if Version == "" {
-		Version = "dev"
-	}
-}
+// The version number that is being run at the moment, set through ldflags.
+var Version string = "dev"
 
 func Print() {
 	fmt.Printf("cek version %s\n", Version)
