@@ -16,7 +16,13 @@ registry. While it does not require a container daemon, it can leverage one when
 available to access locally cached images and avoid registry rate limits. Most
 importantly, cek never runs containers.
 
-## Installation 
+## Installation
+
+```bash
+brew install cek
+```
+
+Or with Go:
 
 ```bash
 go install github.com/bschaatsbergen/cek@latest
