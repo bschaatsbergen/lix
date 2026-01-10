@@ -5,32 +5,17 @@ import (
 	"fmt"
 	"io"
 	"runtime"
-	"strings"
 )
 
-//go:embed VERSION
-var versionFile string
-
-var (
-	Version string
-)
-
-func init() {
-	if Version == "" {
-		Version = strings.TrimSpace(versionFile)
-	}
-
-	if Version == "" {
-		Version = "dev"
-	}
-}
+// The version number that is being run at the moment, set through ldflags.
+var Version string = "dev"
 
 func Print() {
-	fmt.Printf("lix version %s\n", Version)
+	fmt.Printf("cek version %s\n", Version)
 	fmt.Printf("%s/%s\n", runtime.GOOS, runtime.GOARCH)
 }
 
 func Fprint(w io.Writer) {
-	fmt.Fprintf(w, "lix version %s\n", Version)
-	fmt.Fprintf(w, "%s/%s\n", runtime.GOOS, runtime.GOARCH)
+	_, _ = fmt.Fprintf(w, "cek version %s\n", Version)
+	_, _ = fmt.Fprintf(w, "%s/%s\n", runtime.GOOS, runtime.GOARCH)
 }
